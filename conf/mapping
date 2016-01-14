@@ -1,0 +1,19 @@
+{
+    "wiki-type": {
+        "properties": {
+            "title": {
+                "type": "string",
+                "fields": {
+                    "shingles": {
+                        "type":     "string",
+                        "analyzer": "my_shingle_analyzer"
+                    },
+                    "english": {
+                        "type":     "string",
+                        "analyzer": "english"
+                    }
+                }
+            }
+        }
+    }
+}
