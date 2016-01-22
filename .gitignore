@@ -1,2 +1,10 @@
 *.pyc
 .idea
+data/ck12_book
+data/wiki_data
+data/wiki_science_data
+data/parsed_wiki_data
+data/index
+source_docs
+tst
+.ipynb_checkpoints
