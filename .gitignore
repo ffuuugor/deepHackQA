@@ -8,3 +8,6 @@ data/index
 source_docs
 tst
 .ipynb_checkpoints
+*.csv
+luctest.ipynb
+lucene.ipynb
