@@ -3,23 +3,24 @@ import grequests
 import json
 import random
 
-def _construct_query(query_string):
+def _construct_query(query_string, size=10):
     return {
+            "size": size,
             "query": {
                 "bool": {
                     "must": {
                         "multi_match": {
                                 "type": "most_fields",
                                 "query": query_string,
-                                "fields": [ "title", "title.english" ],
-                                "minimum_should_match": "30%"
+                                "fields": [ "title.english" ]
+                                # "minimum_should_match": "30%"
                             }
                     },
                     "should": {
                             "multi_match": {
                                 "type": "most_fields",
                                 "query": query_string,
-                                "fields": [ "title", "title.english", "title.shingles" ]
+                                "fields": [ "title.english", "title.shingles" ]
                             }
                         }
                     }
@@ -35,7 +36,7 @@ def _construct_url(host, index):
     """
     return "http://%s:9200/%s/_search" % (host, index)
 
-def bulk_es_search(index, queries, hosts=None, batch_size=32):
+def bulk_es_search(index, queries, hosts=None, size=10, batch_size=32):
     """
     Perform bulk search request to elasticsearch
     :param index: index name
@@ -51,7 +52,7 @@ def bulk_es_search(index, queries, hosts=None, batch_size=32):
     for idx in range(0, len(queries), batch_size):
 
         rs = (grequests.post(_construct_url(hosts[int(random.random()*len(hosts))], index),
-                             data=json.dumps(_construct_query(q))) for q in queries[idx:idx+batch_size])
+                             data=json.dumps(_construct_query(q, size))) for q in queries[idx:idx+batch_size])
         ret.extend(map(lambda x: json.loads(x.text), grequests.map(rs)))
 
     return ret

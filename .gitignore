@@ -1,1 +1,6 @@
 *.pyc
+data/
+submissions/
+.idea/
+.ipynb_checkpoints/
+.venv/

@@ -1,0 +1,33 @@
+{
+    "settings": {
+        "number_of_shards": 1,  
+        "analysis": {
+            "filter": {
+                "my_shingle_filter": {
+                    "type":             "shingle",
+                    "min_shingle_size": 2, 
+                    "max_shingle_size": 3, 
+                    "output_unigrams":  false   
+                },
+                "my_stemmer" : {
+                    "type" : "stemmer",
+                    "name" : "porter2"
+                }
+            },
+            "analyzer": {
+                "my_shingle_analyzer": {
+                    "type":             "custom",
+                    "tokenizer":        "standard",
+                    "filter": [
+                        "lowercase",
+                        "my_shingle_filter" 
+                    ]
+                },
+		"my_stem_analyzer" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["standard", "lowercase", "my_stemmer"]
+                }
+            }
+        }
+    }
+}

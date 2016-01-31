@@ -134,10 +134,12 @@ def vote_success_zone(*pairs):
     for i in range(1, len(dfs)):
         res_df = res_df.merge(dfs[i].to_frame(), left_index=True, right_index=True)
 
+
+    res_df.columns=[str(i) for i in range(0,len(pairs))]
     def pick_one(serie):
         values = serie.to_dict().items()
         values = map(lambda x: (x[0],x[1][0],x[1][1]), values)
-        return sorted(values, key=lambda x: x[2], reverse=True)[0][1]
+        return sorted(values, key=lambda x: x[2], reverse=True)[0]
 
     return res_df.apply(pick_one, axis=1)
 
@@ -188,10 +190,10 @@ def success_zone_cumulative(df_real, df_scores):
 
     precision_tuples = remove_duplicates(precision_tuples)
 
-    to_plot_y = map(lambda x: float(x[0])/x[1], precision_tuples)[300:-20]
-    to_plot_x = map(lambda x: x[2], precision_tuples)[300:-20]
+    to_plot_y = map(lambda x: float(x[0])/x[1], precision_tuples)
+    to_plot_x = map(lambda x: x[2], precision_tuples)
 
-    p3 = np.poly1d(np.polyfit(to_plot_x, to_plot_y, 4))
+    p3 = np.poly1d(np.polyfit(to_plot_x, to_plot_y, 10))
     return p3
 
 def success_zone_group(df_real, df_scores):
@@ -234,8 +236,21 @@ def success_zone_group(df_real, df_scores):
         to_plot_x.append(avg_probability)
         to_plot_y.append(avg_precision)
 
-    p3 = np.poly1d(np.polyfit(to_plot_x, to_plot_y, 2))
+    p3 = np.poly1d(np.polyfit(to_plot_x, to_plot_y, 3))
     return p3
+
+    # traces = []
+    # traces.append(go.Scatter(
+    #         x = to_plot_x,
+    #         y = to_plot_y
+    #     ))
+    #
+    # traces.append(go.Scatter(
+    #         x = to_plot_x,
+    #         y = [p3(x) for x in to_plot_x],
+    #     ))
+    #
+    # plotly.offline.plot(traces)
 
 def plot_polys(polys):
     traces = []
@@ -274,23 +289,31 @@ def predict_one(df):
 
 
 if __name__ == '__main__':
+    df_tema = pandas.DataFrame.from_csv(os.path.join("data","predictions","tema_scores3.csv"), index_col=4).fillna(0)
     df_es = pandas.DataFrame.from_csv(os.path.join("data","predictions","es_scores.csv")).fillna(0)
+    df_snowball = pandas.DataFrame.from_csv(os.path.join("data","predictions","snowball_scores.csv")).fillna(0)
     df_ck = pandas.DataFrame.from_csv(os.path.join("data","predictions","ck12_scores.csv"), index_col=4).fillna(0)
     df_glove = pandas.DataFrame.from_csv(os.path.join("data","predictions","glove_scores.csv"), index_col=4).fillna(0)
     df_real = pandas.DataFrame.from_csv(os.path.join("data","training_set_answers.csv")).fillna(0)
 
     df_es_valid = pandas.DataFrame.from_csv(os.path.join("data","predictions","es_scores_validation.csv")).fillna(0)
+    df_snowball_valid = pandas.DataFrame.from_csv(os.path.join("data","predictions","snowball_scores_validation.csv")).fillna(0)
     df_ck_valid = pandas.DataFrame.from_csv(os.path.join("data","predictions","ck12_scores_validation.csv"), index_col=4).fillna(0)
     df_glove_valid = pandas.DataFrame.from_csv(os.path.join("data","predictions","glove_scores_validation.csv"), index_col=4).fillna(0)
 
-    df_vote_one = vote_best(df_es, df_ck, df_glove).to_frame()
-    df_vote_four = vote_ranks(df_es, df_ck, df_glove).to_frame()
-    df_vote_prob = vote_probability(df_es, df_ck, df_glove).to_frame()
+    df_vote_one = vote_best(df_tema, df_snowball, df_es, df_ck, df_glove).to_frame()
+    df_vote_four = vote_ranks(df_tema, df_snowball, df_es, df_ck, df_glove).to_frame()
+    df_vote_prob = vote_probability(df_tema, df_snowball, df_es, df_ck, df_glove).to_frame()
 
-    dfs = [df_es, df_ck, df_glove]
+    print df_tema
+    dfs = [df_tema, df_snowball, df_es, df_ck, df_glove]
     polys = [success_zone_group(df_real, df) for df in dfs]
-    df_vote_confidence = vote_success_zone(*zip(dfs, polys)).to_frame()
-
+    df_vote_confidence = vote_success_zone(*zip(dfs, polys))
+    print df_vote_confidence.apply(lambda x: x[2]).mean()
+    print df_vote_confidence.apply(lambda x: x[2]).median()
+    #
+    print "tema", precision(df_real, predict_one(df_tema))
+    print "snowball", precision(df_real, predict_one(df_snowball))
     print "es", precision(df_real, predict_one(df_es))
     print "ck", precision(df_real, predict_one(df_ck))
     print "glove", precision(df_real, predict_one(df_glove))
@@ -298,4 +321,8 @@ if __name__ == '__main__':
     print "vote one", precision(df_real, df_vote_one)
     print "vote four", precision(df_real, df_vote_four)
     print "vote prob", precision(df_real, df_vote_prob)
-    print "vote_success", precision(df_real, df_vote_confidence)
+    print "vote_success", precision(df_real, df_vote_confidence.apply(lambda x: x[1]).to_frame())
+
+    # valid_dfs = [df_snowball_valid, df_es_valid, df_ck_valid, df_glove_valid]
+    # df_vote_one_valid = vote_success_zone(*zip(valid_dfs, polys)).to_frame()
+    # df_vote_one_valid.to_csv("submission_votefour.csv")
