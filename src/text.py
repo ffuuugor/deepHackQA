@@ -43,17 +43,17 @@ def tokenize_sentences(document):
     return sentence_tokenizer.tokenize(document)
 
 
-def tokenize(doc,
-             pattern=r'''(?x)    # set flag to allow verbose regexps
-                 ([A-Z]\.)+        # abbreviations, e.g. U.S.A.
-               | \w+(-\w+)*        # words with optional internal hyphens
-               | \$?\d+(\.\d+)?%?  # currency and percentages, e.g. $12.40, 82%
-               | \.\.\.            # ellipsis
-               | [][.,;"'?():-_`]  # these are separate tokens; includes ], [
-            '''):
-    """ Tokenize doc. Defines tokens by given pattern
-    :param doc:
-    :return:
-    """
-    return nltk.regexp_tokenize(doc, pattern)
+# def tokenize(doc,
+#              pattern=r'''(?x)    # set flag to allow verbose regexps
+#                  ([A-Z]\.)+        # abbreviations, e.g. U.S.A.
+#                | \w+(-\w+)*        # words with optional internal hyphens
+#                | \$?\d+(\.\d+)?%?  # currency and percentages, e.g. $12.40, 82%
+#                | \.\.\.            # ellipsis
+#                | [][.,;"'?():-_`]  # these are separate tokens; includes ], [
+#             '''):
+#     """ Tokenize doc. Defines tokens by given pattern
+#     :param doc:
+#     :return:
+#     """
+#     return nltk.regexp_tokenize(doc, pattern)
 

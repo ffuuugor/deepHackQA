@@ -115,7 +115,7 @@ def index(analyzer, index_dest_dir, documents):
 
 
 def make_request(query, analyzer, index, qparser_regexp=None, max_results=100):
-    """
+    """ Returns list of Score objects, which exposes `doc` (document ID in lucene) and `score` attrs
     :param query:
     :param analyzer:
     :param index:
@@ -131,22 +131,3 @@ def make_request(query, analyzer, index, qparser_regexp=None, max_results=100):
     )
     hits = searcher.search(query, max_results)
     return hits.scoreDocs
-
-
-if __name__ == '__main__':
-    lucene.initVM()
-    q = """
-    When athletes begin to exercise, their heart rates and respiration rates increase.
-    At what level of organization does the human body coordinate these functions?
-    at the tissue level	at the organ level
-    """
-    analyzer = SnowballAnalyzer(Version.LUCENE_30, "English", StandardAnalyzer.STOP_WORDS_SET)
-
-    hits = make_request(
-        query=q,
-        analyzer=analyzer,
-        index=_index("compound_index_all_wiki_paragraphs"),
-        qparser_regexp="[^a-zA-Z0-9]",
-        max_results=30
-    )
-    print [hit for hit in hits.scoreDocs]
