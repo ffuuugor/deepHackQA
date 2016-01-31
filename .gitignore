@@ -13,3 +13,4 @@ submissions/
 .idea/
 .ipynb_checkpoints/
 .venv/
+*.csv
