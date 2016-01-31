@@ -8,3 +8,8 @@ data/index
 source_docs
 tst
 .ipynb_checkpoints
+data/
+submissions/
+.idea/
+.ipynb_checkpoints/
+.venv/
