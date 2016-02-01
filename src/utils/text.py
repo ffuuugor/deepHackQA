@@ -14,12 +14,6 @@ from src.utils.book_processing import get_h1_text, get_h_all_text
 from src import BASE_DIR
 
 
-
-
-
-sentence_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
-
-
 def qa_pair(question, answer_option):
     """ Joins question text with answer option.
     :param question:
@@ -44,14 +38,6 @@ def qa_pair(question, answer_option):
     else:
         q = question + " " + answer_option
     return q
-
-
-def tokenize_sentences(document):
-    """ Splits given doc by sentences
-    :param document:
-    :return:
-    """
-    return sentence_tokenizer.tokenize(document)
 
 
 def get_docs(wiki=True, ck12=True, to_unicode=True):
