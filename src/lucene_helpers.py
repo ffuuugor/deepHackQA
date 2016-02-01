@@ -3,25 +3,16 @@
 created by artemkorkhov at 2016/01/26
 """
 
-import os
-import sys
 import re
 
-import lucene
 import pandas as pd
-import numpy as np
 
-import book_processing
 from src import BASE_DIR
 # import utils
 from lucene import *
-from src.make_synonyms import tokenize
-
 # lucene.initVM()
 
 from org.apache.lucene.document import Document, Field
-from org.apache.lucene.analysis.snowball import SnowballAnalyzer
-from org.apache.lucene.analysis.standard import StandardAnalyzer
 from org.apache.lucene.util import Version
 from org.apache.lucene.index import IndexWriter, IndexWriterConfig
 
@@ -29,8 +20,6 @@ from org.apache.lucene.store import SimpleFSDirectory
 from org.apache.lucene.index import IndexReader
 from org.apache.lucene.search import IndexSearcher
 from org.apache.lucene.queryparser.classic import QueryParser
-from org.apache.lucene.analysis.miscellaneous import LimitTokenCountAnalyzer
-from org.apache.lucene.analysis.shingle import ShingleAnalyzerWrapper
 from java.io import File
 
 
