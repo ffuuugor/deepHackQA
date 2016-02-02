@@ -63,7 +63,9 @@ def _load_json_list(name):
     """
     if os.path.exists(os.path.join(BASE_DIR, name)):
         with open(os.path.join(BASE_DIR, name)) as f:
-            return json.loads(f.read())
+            dat = f.read()
+            list_ = json.loads(dat)
+            return list_
     else:
         return None
 
@@ -254,7 +256,7 @@ def main(qtype='TS'):
     """
     # TODO 1 ST ITERATION - permutations only on questions
     dictionary, tfidf = get_tfidf_model()
-    top_kw_triples = get_top_keywords(dictionary, tfidf, top=0.75)
+    top_kw_triples = get_top_keywords(dictionary, tfidf, top=0.3)
 
     keywords = [el[2] for el in top_kw_triples]
     qa_wordlists = get_questions(qtype=qtype, keywords=keywords)
