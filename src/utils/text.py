@@ -6,9 +6,14 @@ created by artemkorkhov at 2016/01/20
 import os
 import re
 import warnings
+import json
 
 import nltk
 import pandas as pd
+from itertools import chain
+
+from gensim.utils import smart_open
+from gensim.corpora.wikicorpus import filter_wiki, _extract_pages
 
 from src.utils.book_processing import get_h1_text, get_h_all_text
 from src import BASE_DIR
@@ -40,7 +45,7 @@ def qa_pair(question, answer_option):
     return q
 
 
-def get_docs(wiki=True, ck12=True, to_unicode=True):
+def get_docs(wiki=True, ck12=True, raw=True):
     """ Returns all text data that we have for learning models
     :param wiki:
     :param ck12:
@@ -53,12 +58,7 @@ def get_docs(wiki=True, ck12=True, to_unicode=True):
             if not filename.endswith('.json'):
                 with open(os.path.join(BASE_DIR, dirname, filename)) as fn:
                     doc = fn.read()
-                    if to_unicode:
-                        doc = unicode(doc)
-                    result.append({
-                        "name": filename.split('.')[0],
-                        "content": doc
-                    })
+                    result.append(doc)
         return result
 
     def parse_book(dirname="data/ck12_book/OEBPS"):
@@ -69,21 +69,41 @@ def get_docs(wiki=True, ck12=True, to_unicode=True):
                 if _fn.isdigit():
                     with open(os.path.join(BASE_DIR, dirname, filename)) as f:
                         doc = f.read()
-                        if to_unicode:
-                            doc = unicode(doc)
-                        result.append({
-                            "headers": get_h1_text(doc),
-                            "content": get_h_all_text(doc)
-                        })
+                        # result.append({
+                        #     "headers": get_h1_text(doc),
+                        #     "content": get_h_all_text(doc)
+                        # })
+                        headers = get_h1_text(doc)
+                        contents = get_h_all_text(doc)
+                        headers_data = [' '.join([k, v]) for k, v in headers.iteritems()]
+                        contents_data = [' '.join([k, ' '.join(v)]) for k, v in contents.iteritems()]
+                        result.extend(headers_data)
+                        result.extend(contents_data)
         return result
 
-    texts = {}
-    if wiki:
-        texts['wiki'] = parse_dir("data/parsed_wiki_data")
-    if ck12:
-        texts['ck12'] = parse_book()
+    wiki = parse_dir("data/parsed_wiki_data")
+    book = parse_book()
+    return wiki, book
 
-    return texts
+
+def wiki_docs(dir="data/simple_wiki"):
+    """
+    :param path:
+    :return:
+    """
+    for filename in os.listdir(os.path.join(BASE_DIR, dir)):
+        with open(os.path.join(BASE_DIR, dir, filename)) as f:
+            doc = filter_wiki(f.read())
+            yield doc
+
+
+def get_swiki(path="data/swiki.json"):
+    """ Uses presaved simple wiki
+    :param path:
+    :return:
+    """
+    with open(os.path.join(BASE_DIR, path)) as f:
+        return json.loads(f.read())
 
 
 def get_questions():
@@ -94,10 +114,14 @@ def get_questions():
     TS = pd.read_csv(os.path.join(BASE_DIR, "data/training_set.tsv"), sep='\t')
     VS = pd.read_csv(os.path.join(BASE_DIR, "data/validation_set.tsv"), sep='\t')
     for _, row in TS.iterrows():
-        texts.extend([row['question'], row['answerA'], row['answerB'], row['answerC'], row['answerD']])
+        texts.append([row['question'], row['answerA'], row['answerB'], row['answerC'], row['answerD']])
     for _, row in VS.iterrows():
-        texts.extend([row['question'], row['answerA'], row['answerB'], row['answerC'], row['answerD']])
-    return [unicode(d.decode('utf8')) for d in texts]
+        texts.append([row['question'], row['answerA'], row['answerB'], row['answerC'], row['answerD']])
+    # return [unicode(di.decode('utf8')) for d in texts for di in d]
+    result = []
+    for text in texts:
+        result.append([unicode(d.decode('utf8')) for d in text])
+    return result
 
 
 def make_texts(docs, include_questions=True, single=True):
@@ -142,5 +166,5 @@ def preprocess_text(text, regexp="[^a-zA-Z0-9,\?\.]"):
 
     process = lambda x: ' '.join(re.sub(regexp, " ", x).lower().split())
 
-    return map(process, docs)
+    return map(unicode, map(process, docs))
 

@@ -94,17 +94,17 @@ def get_keyword_from_url_topic(url_topic):
     return lst_url
 
 
-def tokenize(review, remove_stopwords = True ):
+def tokenize(review, remove_stopwords=True):
     # Function to convert a document to a sequence of words,
     # optionally removing stop words.  Returns a list of words.
     # 1. Remove non-letters
-    review_text = re.sub("[^a-zA-Z]"," ", review)
+    review_text = re.sub(r"[^a-zA-Z]", " ", review)
     # 2. Convert words to lower case and split them
     words = review_text.lower().split()
     # 3. Optionally remove stop words (true by default)
     if remove_stopwords:
         stops = set(stopwords.words("english"))
-        words = [w for w in words if not w in stops]
+        words = [w for w in words if w not in stops]
     # 5. Return a list of words
     return words
 
