@@ -19,7 +19,6 @@ from nltk.corpus import stopwords
 from nltk.stem.porter import PorterStemmer
 # from spacy import English
 
-from src.utils.text import get_swiki, qa_pair
 from src.utils.text import get_questions as gq
 from src import BASE_DIR
 
@@ -84,7 +83,7 @@ def get_tfidf_model(path="data/swiki.json", save_path="data/swiki_dict.txt", ste
     :param save_path:
     :return:
     """
-    texts = map(lambda x: _preprocess_text(x, stem=stem), get_swiki())
+    texts = map(lambda x: _preprocess_text(x, stem=stem), _load_json_list("data/swiki.json"))
 
     def _get_swiki_dictionary():
         dict_file = os.path.join(BASE_DIR, save_path)
