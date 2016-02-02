@@ -4,10 +4,13 @@ created by artemkorkhov at 2016/02/02
 """
 
 import os
+import json
 from pprint import pprint
 import itertools
+import collections
 
 import numpy as np
+import pandas as pd
 
 from gensim import corpora
 from gensim.models.tfidfmodel import TfidfModel
@@ -52,6 +55,27 @@ def _sum_vec(vecs):
         sum_ += v
     sum_ /= np.linalg.norm(sum_)
     return sum_
+
+
+def _load_json_list(name):
+    """
+    :param qtype:
+    :return:
+    """
+    if os.path.exists(os.path.join(BASE_DIR, name)):
+        with open(os.path.join(BASE_DIR, name)) as f:
+            return json.loads(f.read())
+    else:
+        return None
+
+
+def _save_json_list(list_, name):
+    """
+    :param qtype:
+    :return:
+    """
+    with open(os.path.join(BASE_DIR, name), 'wb') as f:
+        json.dump(list_, f)
 
 
 def get_tfidf_model(path="data/swiki.json", save_path="data/swiki_dict.txt", stem=False):
@@ -99,25 +123,30 @@ def get_top_keywords(dct, tfidf, top=0.5):
     return triples[:int(len(triples)*top)]
 
 
-def get_questions(keywords=None):
+def get_questions(qtype='TS', keywords=None):
     """ Returns normalized question pairs
+    :param qtype:
+    :param keywords:
     :return:
     """
-    questions = gq()
-    import ipdb
-    ipdb.set_trace()
-    processed_qs = []
-    for qas in questions:
-        word_lists = map(_preprocess_text, qas)
-        if keywords:
-            packs = []
-            for word_pack in word_lists:  # iterate over qestion/answer candidates
-                filtered = filter(lambda x: x in keywords, word_pack)
-                packs.append(filtered)
-            processed_qs.append(packs)
-        else:
-            processed_qs.append(word_lists)
-    return processed_qs
+    questions = _load_json_list("data/cleaned_questions_%s.json" % qtype)
+    if questions is not None:
+        return questions
+    else:
+        questions = gq(qtype)
+        processed_qs = []
+        for qas in questions:
+            word_lists = map(_preprocess_text, qas)
+            if keywords:
+                packs = []
+                for word_pack in word_lists:  # iterate over qestion/answer candidates
+                    filtered = filter(lambda x: x in keywords, word_pack)
+                    packs.append(filtered)
+                processed_qs.append(packs)
+            else:
+                processed_qs.append(word_lists)
+        _save_json_list(processed_qs, "data/cleaned_questions_%s.json" % qtype)
+        return processed_qs
 
 
 def to_vectorspace(itemlist):
@@ -140,7 +169,9 @@ def permute(vectorset):
     :param vectorset:
     :return:
     """
-    letters = 'abcdefghijklmnoprs'
+    import ipdb
+    ipdb.set_trace()
+    letters = 'abcdefghijklmnoprstq'
 
     def mask(vectorset):
         _mask = {}
@@ -151,8 +182,8 @@ def permute(vectorset):
     def extend_mask(mask):
         result = {}
         result.update(mask)
-        for el, vector in mask:
-            result.update({str('-'+el): vector * -1})
+        for el, vector in mask.items():
+            result.update({str('-'+str(el)): np.dot(vector, -1.)})
         return result
 
     def cfilter(comb):
@@ -183,7 +214,42 @@ def permute(vectorset):
     return results
 
 
-def main():
+def best_each_strategy(question_candidates, answer_options):
+    """
+    :param question_candidates:
+    :param answer_options:
+    :return:
+    """
+    aA = []
+    aB = []
+    aC = []
+    aD = []
+    answer_matrix = [aA, aB, aC, aD]
+    for candidate in question_candidates:
+        for ix, answer in enumerate(answer_options):
+            answer_matrix[ix].append(np.dot(candidate, answer))
+    answer = np.argmax(map(lambda x: sorted(x)[-1], answer_matrix))
+    return 'ABCD'[answer]
+
+
+def best_overall_strategy(question_candidates, answer_options):
+    """
+    :param question_candidates:
+    :param answer_options:
+    :return:
+    """
+    competitors = []
+    for candidate in question_candidates:
+        answers = []
+        for ix, answer in enumerate(answer_options):
+            answers.append((ix, np.dot(candidate, answer)))
+        best = sorted(answers, key=lambda x: x[-1])[-1]
+        competitors.append(best)
+    best_answer = sorted(competitors, lambda x: x[-1])[-1]
+    return 'ABCD'[best_answer[0]]
+
+
+def main(qtype='TS'):
     """
     :return:
     """
@@ -192,29 +258,48 @@ def main():
     top_kw_triples = get_top_keywords(dictionary, tfidf, top=0.75)
 
     keywords = [el[2] for el in top_kw_triples]
-    qa_wordlists = get_questions(keywords)
-    results = []
-    for qas in qa_wordlists:
-        q, a, b, c, d = qas
-        qvecspace, q_init_length, q_final_length = to_vectorspace(q)
-        question_candidates_vectors = permute(qvecspace)
-        answer_candidates = []
-        for ac in [a, b, c, d]:
-            vecs, a_init_len, q_final_len = to_vectorspace(ac)
-            answer_candidate = _sum_vec(vecs)
-            answer_candidates.append(answer_candidate)
-        results.append((question_candidates_vectors, answer_candidates))
+    qa_wordlists = get_questions(qtype=qtype, keywords=keywords)
+
+    import ipdb
+    ipdb.set_trace()
+
+    questions_stats = collections.Counter()
+    answers_stats = collections.Counter()
+
+    results = _load_json_list("data/qa_candidate_vectors_%s.json" % qtype)
+    if results is None:
+        results = []
+        for qas in qa_wordlists:
+            question, ans_a, ans_b, ans_c, ans_d = qas
+            qvecspace, q_init_length, q_final_length = to_vectorspace(question)
+            questions_stats.update([(q_final_length * 1.) / q_init_length])
+            question_candidates_vectors = permute(qvecspace)
+            answer_candidates = []
+            for ac in [ans_a, ans_b, ans_c, ans_d]:
+                vecs, a_init_len, a_final_len = to_vectorspace(ac)
+                answers_stats.update([(a_final_len * 1.)/a_init_len])
+                answer_candidate = _sum_vec(vecs)
+                answer_candidates.append(answer_candidate)
+            results.append((question_candidates_vectors, answer_candidates))
+        _save_json_list(results, "data/qa_candidate_vectors_%s.json" % qtype)
+
+    best_each_answers = {}
+    best_overall_answers = {}
+
+    for ix, (question_candidates, answer_vectors) in enumerate(results):
+        best_each_answers.update({ix, best_each_strategy(question_candidates, answer_vectors)})
+        best_overall_answers.update({ix, best_overall_strategy(question_candidates, answer_vectors)})
+
+    pd.DataFrame(data=best_each_answers).to_csv(
+        os.path.join(BASE_DIR, "data/best_each_answers_strategy_results.csv"),
+        index=False, sep='\t'
+    )
+    pd.DataFrame(data=best_overall_answers).to_csv(
+        os.path.join(BASE_DIR, "data/best_each_answers_strategy_results.csv"),
+        index=False, sep='\t'
+    )
 
 
 if __name__ == '__main__':
 
-    # dct, tfidf = get_tfidf_model()
-    # pprint(tfidf.idfs.items()[:20])
-    # pprint(tfidf.dfs.items()[:20])
-
-    # top_kws = get_top_keywords(dct, tfidf)
-
-    # pprint(top_kws[:20])
-    questions = get_questions()
-    pprint(questions[:5])
-
+    main()

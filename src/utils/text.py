@@ -106,22 +106,23 @@ def get_swiki(path="data/swiki.json"):
         return json.loads(f.read())
 
 
-def get_questions():
+def get_questions(qtype='TS'):
     """ Gets questions and answers data
     :return:
     """
+    if qtype == 'TS':
+        DS = pd.read_csv(os.path.join(BASE_DIR, "data/training_set.tsv"), sep='\t')
+    elif qtype == 'VS':
+        DS = pd.read_csv(os.path.join(BASE_DIR, "data/validation_set.tsv"), sep='\t')
+    else:
+        raise Exception("choose either load test (qtype=TS) or validation (qtype=VS) data!")
     texts = []
-    TS = pd.read_csv(os.path.join(BASE_DIR, "data/training_set.tsv"), sep='\t')
-    VS = pd.read_csv(os.path.join(BASE_DIR, "data/validation_set.tsv"), sep='\t')
-    for _, row in TS.iterrows():
+    for _, row in DS.iterrows():
         texts.append([row['question'], row['answerA'], row['answerB'], row['answerC'], row['answerD']])
-    for _, row in VS.iterrows():
-        texts.append([row['question'], row['answerA'], row['answerB'], row['answerC'], row['answerD']])
-    # return [unicode(di.decode('utf8')) for d in texts for di in d]
-    result = []
+    results = []
     for text in texts:
-        result.append([unicode(d.decode('utf8')) for d in text])
-    return result
+        results.append([unicode(d.decode('utf8')) for d in text])
+    return results
 
 
 def make_texts(docs, include_questions=True, single=True):
