@@ -200,7 +200,7 @@ def permute(vectorset):
 
     masked = mask(vectorset)
     extended_mask = extend_mask(masked)  # (m, vector) pairs
-    permutations = list(itertools.combinations(extended_mask.keys(), len(masked)))  # makes all combinations
+    permutations = itertools.combinations(extended_mask.keys(), len(masked))  # makes all combinations
     good_permutations = filter(cfilter, permutations)
 
     results = []
@@ -287,17 +287,21 @@ def main(qtype='TS'):
     best_overall_answers = {}
 
     for ix, (question_candidates, answer_vectors) in enumerate(results):
-        best_each_answers.update({ix, best_each_strategy(question_candidates, answer_vectors)})
-        best_overall_answers.update({ix, best_overall_strategy(question_candidates, answer_vectors)})
+        best_each_answers.update({ix+1, best_each_strategy(question_candidates, answer_vectors)})
+        best_overall_answers.update({ix+1, best_overall_strategy(question_candidates, answer_vectors)})
 
-    pd.DataFrame(data=best_each_answers).to_csv(
+    best_each = pd.DataFrame(data=best_each_answers)
+    best_each.to_csv(
         os.path.join(BASE_DIR, "data/best_each_answers_strategy_results.csv"),
         index=False, sep='\t'
     )
-    pd.DataFrame(data=best_overall_answers).to_csv(
+    best_overall = pd.DataFrame(data=best_overall_answers)
+    best_overall.to_csv(
         os.path.join(BASE_DIR, "data/best_each_answers_strategy_results.csv"),
         index=False, sep='\t'
     )
+
+    TS = pd.read_csv(os.path.join(BASE_DIR, "data/training_set.tsv"), sep='\t')
 
 
 if __name__ == '__main__':
