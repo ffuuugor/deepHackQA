@@ -42,6 +42,18 @@ def _preprocess_text(text, stem=False):
     return words
 
 
+def _sum_vec(vecs):
+    """
+    :param vecs:
+    :return:
+    """
+    sum_ = np.zeros(300)
+    for v in vecs:
+        sum_ += v
+    sum_ /= np.linalg.norm(sum_)
+    return sum_
+
+
 def get_tfidf_model(path="data/swiki.json", save_path="data/swiki_dict.txt", stem=False):
     """
     :param path:
@@ -87,7 +99,7 @@ def get_top_keywords(dct, tfidf, top=0.5):
     return triples[:int(len(triples)*top)]
 
 
-def get_questions(keywords=False):
+def get_questions(keywords=None):
     """ Returns normalized question pairs
     :return:
     """
@@ -185,14 +197,13 @@ def main():
     for qas in qa_wordlists:
         q, a, b, c, d = qas
         qvecspace, q_init_length, q_final_length = to_vectorspace(q)
-        question_candidates = permute(qvecspace)
+        question_candidates_vectors = permute(qvecspace)
         answer_candidates = []
         for ac in [a, b, c, d]:
-            avecspace, a_init_length, a_final_length = to_vectorspace(ac)
-            answer_candidates.append(permute(avecspace))
-
-
-
+            vecs, a_init_len, q_final_len = to_vectorspace(ac)
+            answer_candidate = _sum_vec(vecs)
+            answer_candidates.append(answer_candidate)
+        results.append((question_candidates_vectors, answer_candidates))
 
 
 if __name__ == '__main__':
