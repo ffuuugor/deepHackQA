@@ -1,3 +1,7 @@
 elasticsearch
 grequests
 requests
+gensim
+simplejson
+beautifulsoup4
+jupyter

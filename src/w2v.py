@@ -8,6 +8,9 @@ import json
 from pprint import pprint
 import itertools
 import collections
+import logging
+import simplejson
+import base64
 
 import numpy as np
 import pandas as pd
@@ -23,6 +26,7 @@ from src.utils.text import get_questions as gq
 from src import BASE_DIR
 
 
+log = logging.getLogger(__name__)
 STOPS = set(stopwords.words("english"))
 
 WORD2VEC = {}
@@ -30,6 +34,39 @@ with open("data/glove/glove.6B." + str(300) + "d.txt") as f:
     for line in f:
         l = line.split()
         WORD2VEC[l[0]] = map(float, l[1:])
+
+
+class NumpyEncoder(json.JSONEncoder):
+
+    def default(self, obj):
+        """If input object is an ndarray it will be converted into a dict
+        holding dtype, shape and the data, base64 encoded.
+        """
+        if isinstance(obj, np.ndarray):
+            if obj.flags['C_CONTIGUOUS']:
+                obj_data = obj.data
+            else:
+                cont_obj = np.ascontiguousarray(obj)
+                assert(cont_obj.flags['C_CONTIGUOUS'])
+                obj_data = cont_obj.data
+            data_b64 = base64.b64encode(obj_data)
+            return dict(__ndarray__=data_b64,
+                        dtype=str(obj.dtype),
+                        shape=obj.shape)
+        # Let the base class default method raise the TypeError
+        return json.JSONEncoder(self, obj)
+
+
+def json_numpy_obj_hook(dct):
+    """Decodes a previously encoded numpy ndarray with proper shape and dtype.
+
+    :param dct: (dict) json encoded ndarray
+    :return: (ndarray) if input was an encoded ndarray
+    """
+    if isinstance(dct, dict) and '__ndarray__' in dct:
+        data = base64.b64decode(dct['__ndarray__'])
+        return np.frombuffer(data, dct['dtype']).reshape(dct['shape'])
+    return dct
 
 
 def _preprocess_text(text, stem=False):
@@ -76,7 +113,7 @@ def _save_json_list(list_, name):
     :return:
     """
     with open(os.path.join(BASE_DIR, name), 'wb') as f:
-        json.dump(list_, f)
+        json.dump(list_, f, cls=NumpyEncoder)
 
 
 def get_tfidf_model(path="data/swiki.json", save_path="data/swiki_dict.txt", stem=False):
@@ -124,10 +161,10 @@ def get_top_keywords(dct, tfidf, top=0.5):
     return triples[:int(len(triples)*top)]
 
 
-def get_questions(qtype='TS', keywords=None):
+def get_questions(qtype='TS', keywords=None, num_words=5):
     """ Returns normalized question pairs
     :param qtype:
-    :param keywords:
+    :param keywords: {token: score}
     :return:
     """
     questions = _load_json_list("data/cleaned_questions_%s.json" % qtype)
@@ -138,11 +175,21 @@ def get_questions(qtype='TS', keywords=None):
         processed_qs = []
         for qas in questions:
             word_lists = map(_preprocess_text, qas)
-            if keywords:
+            if keywords:  # FIXME point of optimization!
                 packs = []
-                for word_pack in word_lists:  # iterate over qestion/answer candidates
-                    filtered = filter(lambda x: x in keywords, word_pack)
-                    packs.append(filtered)
+                for word_pack in word_lists:  # iterate over question/answer candidates
+                    if not word_pack:
+                        packs.append(word_pack)
+                        continue
+                    words = []
+                    for ix, word in enumerate(word_pack):
+                        if keywords.get(word) and WORD2VEC.get(word):
+                            words.append((ix, keywords[word]))
+                    log.info("After KW picking we have {}/{} words, or {}%".format(
+                        len(words), len(word_pack), (len(words) * 1.0/len(word_pack)) * 100
+                    ))
+                    top_words = sorted(words, key=lambda x: x[-1], reverse=True)[:num_words]
+                    packs.append([word_pack[i] for i, score in top_words])
                 processed_qs.append(packs)
             else:
                 processed_qs.append(word_lists)
@@ -170,8 +217,8 @@ def permute(vectorset):
     :param vectorset:
     :return:
     """
-    import ipdb
-    ipdb.set_trace()
+    # import ipdb
+    # ipdb.set_trace()
     letters = 'abcdefghijklmnoprstq'
 
     def mask(vectorset):
@@ -228,8 +275,21 @@ def best_each_strategy(question_candidates, answer_options):
     answer_matrix = [aA, aB, aC, aD]
     for candidate in question_candidates:
         for ix, answer in enumerate(answer_options):
-            answer_matrix[ix].append(np.dot(candidate, answer))
-    answer = np.argmax(map(lambda x: sorted(x)[-1], answer_matrix))
+            if isinstance(answer, np.ndarray) and answer.any():
+                answer_matrix[ix].append(np.dot(candidate, answer))
+            elif isinstance(answer, list) and answer:
+                answer_matrix[ix].append(np.dot(candidate, answer))
+            else:
+                answer_matrix[ix].append(0)
+    # answer = np.argmax(map(lambda x: sorted(x)[-1], answer_matrix))
+    answers_results = []
+    for answers in answer_matrix:
+        if answers:
+            answers_sorted = sorted(answers)[-1]
+        else:
+            answers_sorted = 0
+        answers_results.append(answers_sorted)
+    answer = np.argmax(answers_results)
     return 'ABCD'[answer]
 
 
@@ -243,11 +303,47 @@ def best_overall_strategy(question_candidates, answer_options):
     for candidate in question_candidates:
         answers = []
         for ix, answer in enumerate(answer_options):
-            answers.append((ix, np.dot(candidate, answer)))
+            if isinstance(answer, np.ndarray) and answer.any():
+                answers.append((ix, np.dot(candidate, answer)))
+            elif isinstance(answer, list) and answer:
+                answers.append((ix, np.dot(candidate, answer)))
+            else:
+                answers.append((ix, 0))
         best = sorted(answers, key=lambda x: x[-1])[-1]
         competitors.append(best)
-    best_answer = sorted(competitors, lambda x: x[-1])[-1]
+    best_answer = sorted(competitors, key=lambda x: x[-1])[-1]
     return 'ABCD'[best_answer[0]]
+
+
+def avg_strategy(question_candidates, answer_options):
+    """
+    :param question_candidates:
+    :param answer_options:
+    :return:
+    """
+    aA = []
+    aB = []
+    aC = []
+    aD = []
+    answer_matrix = [aA, aB, aC, aD]
+    for candidate in question_candidates:
+        for ix, answer in enumerate(answer_options):
+            if isinstance(answer, np.ndarray) and answer.any():
+                answer_matrix[ix].append(np.dot(candidate, answer))
+            elif isinstance(answer, list) and answer:
+                answer_matrix[ix].append(np.dot(candidate, answer))
+            else:
+                answer_matrix[ix].append(0)
+    # answer = np.argmax(map(lambda x: sorted(x)[-1], answer_matrix))
+    answers_results = []
+    for answers in answer_matrix:
+        if answers:
+            answers_avg = np.mean(answers)
+        else:
+            answers_avg = 0
+        answers_results.append(answers_avg)
+    answer = np.argmax(answers_results)
+    return 'ABCD'[answer]
 
 
 def main(qtype='TS'):
@@ -255,14 +351,12 @@ def main(qtype='TS'):
     :return:
     """
     # TODO 1 ST ITERATION - permutations only on questions
+    broken_answers = 0
     dictionary, tfidf = get_tfidf_model()
-    top_kw_triples = get_top_keywords(dictionary, tfidf, top=0.3)
+    top_kw_triples = get_top_keywords(dictionary, tfidf, top=0.9)
 
-    keywords = [el[2] for el in top_kw_triples]
-    qa_wordlists = get_questions(qtype=qtype, keywords=keywords)
-
-    import ipdb
-    ipdb.set_trace()
+    keywords = {el[2]: el[1] for el in top_kw_triples}
+    qa_wordlists = get_questions(qtype=qtype, keywords=keywords, num_words=10)
 
     questions_stats = collections.Counter()
     answers_stats = collections.Counter()
@@ -270,35 +364,55 @@ def main(qtype='TS'):
     results = _load_json_list("data/qa_candidate_vectors_%s.json" % qtype)
     if results is None:
         results = []
-        for qas in qa_wordlists:
-            question, ans_a, ans_b, ans_c, ans_d = qas
+        for _i, qas in enumerate(qa_wordlists):
+            log.info("processing %d/%d qa comb" % (_i, len(qa_wordlists)))
+            try:
+                question, ans_a, ans_b, ans_c, ans_d = qas
+            except ValueError:
+                pprint(qas)
+                continue
             qvecspace, q_init_length, q_final_length = to_vectorspace(question)
             questions_stats.update([(q_final_length * 1.) / q_init_length])
             question_candidates_vectors = permute(qvecspace)
             answer_candidates = []
             for ac in [ans_a, ans_b, ans_c, ans_d]:
                 vecs, a_init_len, a_final_len = to_vectorspace(ac)
+                if not a_init_len:
+                    answer_candidates.append([])
+                    log.info("Broken answer candidate! couldn't find word2vec representation of the word!")
+                    broken_answers += 1
+                    continue
                 answers_stats.update([(a_final_len * 1.)/a_init_len])
                 answer_candidate = _sum_vec(vecs)
                 answer_candidates.append(answer_candidate)
             results.append((question_candidates_vectors, answer_candidates))
-        _save_json_list(results, "data/qa_candidate_vectors_%s.json" % qtype)
+        # _save_json_list(results, "data/qa_candidate_vectors_%s.json" % qtype)
+    log.info("Got %s/%s questions! =//" % (len(results), len(qa_wordlists)))
+    # import ipdb
+    # ipdb.set_trace()
 
-    best_each_answers = {}
-    best_overall_answers = {}
+    best_each_answers = []
+    best_overall_answers = []
+    best_avg_answers = []
 
     for ix, (question_candidates, answer_vectors) in enumerate(results):
-        best_each_answers.update({ix+1, best_each_strategy(question_candidates, answer_vectors)})
-        best_overall_answers.update({ix+1, best_overall_strategy(question_candidates, answer_vectors)})
+        best_each_answers.append((ix+1, best_each_strategy(question_candidates, answer_vectors)))
+        best_overall_answers.append((ix+1, best_overall_strategy(question_candidates, answer_vectors)))
+        best_avg_answers.append((ix+1, avg_strategy(question_candidates, answer_vectors)))
 
     best_each = pd.DataFrame(data=best_each_answers)
     best_each.to_csv(
-        os.path.join(BASE_DIR, "data/best_each_answers_strategy_results.csv"),
+        os.path.join(BASE_DIR, "data/best_each_answers_strategy_results_7.csv"),
         index=False, sep='\t'
     )
     best_overall = pd.DataFrame(data=best_overall_answers)
     best_overall.to_csv(
-        os.path.join(BASE_DIR, "data/best_each_answers_strategy_results.csv"),
+        os.path.join(BASE_DIR, "data/best_overall_answers_strategy_results_7.csv"),
+        index=False, sep='\t'
+    )
+    best_avg = pd.DataFrame(data=best_avg_answers)
+    best_avg.to_csv(
+        os.path.join(BASE_DIR, "data/best_avg_answers_strategy_results_7.csv"),
         index=False, sep='\t'
     )
 
